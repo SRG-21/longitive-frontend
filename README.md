@@ -1,73 +1,42 @@
-# React + TypeScript + Vite
+# Longevity Management System — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite + Tailwind 4 client for [`longitive-backend`](https://github.com/SRG-21/longitive-backend).
 
-Currently, two official plugins are available:
+## Getting started
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+cp .env.example .env   # VITE_API_URL defaults to http://localhost:3000/api/v1
+npm run dev            # http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+`npm run build` type-checks and builds; `npm run lint` runs ESLint.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Features
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+| Area | Route | Backend module |
+| --- | --- | --- |
+| Dashboard (health score, streak, latest measurements and labs) | `/` | analytics, sleep, exercise, progress |
+| Daily checklist, streaks, weekly report, reminders | `/progress` | progress, reminders |
+| Body composition (manual entry, OCR scan, trends) | `/body-composition` | body-composition |
+| Lab reports (OCR/PDF upload, manual entry, verify, marker trends, comparison) | `/lab-reports` | lab-reports |
+| Sleep & mood logs | `/sleep` | sleep |
+| Exercise logs, stats, AI weekly plan | `/exercise` | exercise |
+| Diet, supplement and hydration plans, daily schedule | `/nutrition` | health-chart |
+| Medicine cabinet (stock, reorder and expiry alerts) | `/inventory` | inventory |
+| AI chat, insights, biological age, what-if, first aid | `/ai/*` | ai |
+| Profile, medical history, lifestyle, goals | `/profile` | user |
+| Notification preferences, two-factor setup | `/settings` | notifications, auth |
+| Journey trackers | `/journey-trackers` | journey-tracker |
+| Login (with 2FA step), register, forgot / reset password | `/login` … | auth |
+
+## Layout
+
+- `src/hooks/` — TanStack Query hooks, one file per backend area (`useHealthData`, `usePlans`, `useAi`, `useProfile`, `useJourneyTracker`).
+- `src/types/` — response shapes mirroring the backend Prisma schema.
+- `src/components/ui/` — shared primitives (cards, fields, buttons, tabs, badges).
+- `src/components/AiContent.tsx` — safe renderer for AI output (Markdown-ish text or JSON).
+- `src/lib/date.ts` — calendar dates are stored as UTC midnight; format them with `formatDate`, not `toLocaleDateString`.
+- Signed-in routes are lazy-loaded in `src/router.tsx`.
+
+Large photos are compressed client-side before OCR upload (`src/lib/upload.ts`) to stay under serverless request-size limits.
