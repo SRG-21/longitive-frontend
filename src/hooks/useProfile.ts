@@ -7,6 +7,8 @@ import type {
   MedicalCondition,
   NotificationChannel,
   NotificationPreference,
+  TelegramLinkResponse,
+  TelegramStatus,
   Treatment,
   UserProfile,
 } from '../types/profile'
@@ -154,5 +156,52 @@ export function useVerify2fa() {
   return useMutation({
     mutationFn: async (code: string) => (await api.post('/auth/2fa/verify', { code })).data,
     onSuccess: () => invalidate('users', 'me'),
+  })
+}
+
+// ---------- Telegram alerts ----------
+
+const LINK_POLL_MS = 3000
+
+/** While `waitingForLink`, polls until the bot reports the chat as connected. */
+export function useTelegramStatus(waitingForLink = false) {
+  return useQuery({
+    queryKey: ['telegram', 'status'],
+    queryFn: async () => (await api.get<TelegramStatus>('/telegram/status')).data,
+    refetchInterval: (query) => (waitingForLink && !query.state.data?.linked ? LINK_POLL_MS : false),
+  })
+}
+
+function useSetTelegramStatus() {
+  const queryClient = useQueryClient()
+  return (status: TelegramStatus) => queryClient.setQueryData(['telegram', 'status'], status)
+}
+
+export function useCreateTelegramLink() {
+  return useMutation({
+    mutationFn: async () => (await api.post<TelegramLinkResponse>('/telegram/link')).data,
+  })
+}
+
+export function useUnlinkTelegram() {
+  const setStatus = useSetTelegramStatus()
+  return useMutation({
+    mutationFn: async () => (await api.delete<TelegramStatus>('/telegram/link')).data,
+    onSuccess: setStatus,
+  })
+}
+
+export function useUpdateTelegramPreferences() {
+  const setStatus = useSetTelegramStatus()
+  return useMutation({
+    mutationFn: async (dto: { dailyReminder?: boolean; missedDayAlert?: boolean }) =>
+      (await api.patch<TelegramStatus>('/telegram/preferences', dto)).data,
+    onSuccess: setStatus,
+  })
+}
+
+export function useTelegramTest() {
+  return useMutation({
+    mutationFn: async () => (await api.post('/telegram/test')).data,
   })
 }

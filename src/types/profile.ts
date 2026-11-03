@@ -76,3 +76,24 @@ export interface NotificationPreference {
   quietHoursStart?: string | null
   quietHoursEnd?: string | null
 }
+
+export interface TelegramStatus {
+  /** The server has a bot token; without one the feature is unavailable. */
+  configured: boolean
+  botUsername: string | null
+  linked: boolean
+  username: string | null
+  linkedAt: string | null
+  /** A connect link was created and hasn't been used or expired yet. */
+  linkPending: boolean
+  dailyReminder: boolean
+  missedDayAlert: boolean
+  /** HH:mm in `timeZone`. */
+  schedule: { dailyReminder: string; missedDayAlert: string; timeZone: string }
+}
+
+export interface TelegramLinkResponse {
+  deepLink: string
+  botUsername: string
+  expiresAt: string
+}

@@ -26,7 +26,7 @@ npm run dev            # http://localhost:5173
 | Medicine cabinet (stock, reorder and expiry alerts) | `/inventory` | inventory |
 | AI chat, insights, biological age, what-if, first aid | `/ai/*` | ai |
 | Profile, medical history, lifestyle, goals | `/profile` | user |
-| Notification preferences, two-factor setup | `/settings` | notifications, auth |
+| Telegram logging alerts (3:00 pm reminder, 11:30 pm missed-day alert), notification preferences, two-factor setup | `/settings` | telegram, notifications, auth |
 | Journey trackers: start/proposed end date, targets, daily vs weekly fields, missed-day backfill, weekly check-ins, chart setup | `/journey-trackers` | journey-tracker |
 | Login (with 2FA step), register, forgot / reset password | `/login` … | auth |
 
