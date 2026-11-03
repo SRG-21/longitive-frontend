@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import type {
   ChartData,
+  LoggingStatus,
   JourneyTracker,
   TrackerEntry,
   TrackerFieldInput,
@@ -36,6 +37,8 @@ interface CreateTrackerInput {
   type?: string
   cadence?: string
   startDate: string
+  /** null clears the end date (update only). */
+  endDate?: string | null
   baseline?: Record<string, number>
   targets?: Record<string, number>
   settings?: Record<string, unknown>
@@ -138,10 +141,22 @@ export function useChartData(trackerId: string | undefined) {
   })
 }
 
-export function useWeeklyReview(trackerId: string | undefined) {
+// `today` is the browser's local calendar day: the server can't know the user's timezone, and
+// "missed" days are counted up to (not including) the user's today.
+export function useWeeklyReview(trackerId: string | undefined, today: string) {
   return useQuery({
-    queryKey: ['journey-trackers', trackerId, 'weekly-review'],
-    queryFn: async () => (await api.get<WeeklyReview>(`/journey-trackers/${trackerId}/weekly-review`)).data,
+    queryKey: ['journey-trackers', trackerId, 'weekly-review', today],
+    queryFn: async () =>
+      (await api.get<WeeklyReview>(`/journey-trackers/${trackerId}/weekly-review`, { params: { today } })).data,
+    enabled: !!trackerId,
+  })
+}
+
+export function useLoggingStatus(trackerId: string | undefined, today: string) {
+  return useQuery({
+    queryKey: ['journey-trackers', trackerId, 'logging-status', today],
+    queryFn: async () =>
+      (await api.get<LoggingStatus>(`/journey-trackers/${trackerId}/logging-status`, { params: { today } })).data,
     enabled: !!trackerId,
   })
 }

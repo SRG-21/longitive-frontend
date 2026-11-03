@@ -2,8 +2,9 @@ import { useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { Download } from 'lucide-react'
-import TrackerTabs from '../../components/journey-tracker/TrackerTabs'
+import TrackerHeader from '../../components/journey-tracker/TrackerHeader'
 import { downloadTrackerCsv, useEntries, useTracker } from '../../hooks/useJourneyTracker'
+import { formatDate } from '../../lib/date'
 import type { TrackerEntry } from '../../types/journey-tracker'
 
 const columnHelper = createColumnHelper<TrackerEntry>()
@@ -20,7 +21,7 @@ export default function TrackerTablePage() {
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor((row) => new Date(row.date).toLocaleDateString(), {
+      columnHelper.accessor((row) => formatDate(row.date), {
         id: 'date',
         header: 'Date',
       }),
@@ -51,16 +52,18 @@ export default function TrackerTablePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">{tracker?.name}</h1>
-        <button
-          onClick={() => downloadTrackerCsv(id)}
-          className="flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent"
-        >
-          <Download size={16} /> Export CSV
-        </button>
-      </div>
-      <TrackerTabs trackerId={id} />
+      <TrackerHeader
+        tracker={tracker}
+        trackerId={id}
+        actions={
+          <button
+            onClick={() => downloadTrackerCsv(id)}
+            className="flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent"
+          >
+            <Download size={16} /> Export CSV
+          </button>
+        }
+      />
 
       <div className="overflow-x-auto rounded-md border border-border">
         <table className="w-full text-left text-sm">

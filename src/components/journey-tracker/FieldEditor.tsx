@@ -84,6 +84,17 @@ export default function FieldEditor({ field, onChange, onRemove, onMoveUp, onMov
           />
           Required
         </label>
+        <label
+          className="flex items-center gap-1"
+          title="Weekly fields are logged once a week in the Weekly review tab instead of in the daily check-in"
+        >
+          <input
+            type="checkbox"
+            checked={field.cadence === 'WEEKLY'}
+            onChange={(e) => onChange({ ...field, cadence: e.target.checked ? 'WEEKLY' : 'DAILY' })}
+          />
+          Weekly entry
+        </label>
         <label className="flex items-center gap-1">
           <input
             type="checkbox"

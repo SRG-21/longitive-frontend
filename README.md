@@ -27,7 +27,7 @@ npm run dev            # http://localhost:5173
 | AI chat, insights, biological age, what-if, first aid | `/ai/*` | ai |
 | Profile, medical history, lifestyle, goals | `/profile` | user |
 | Notification preferences, two-factor setup | `/settings` | notifications, auth |
-| Journey trackers | `/journey-trackers` | journey-tracker |
+| Journey trackers: start/proposed end date, targets, daily vs weekly fields, missed-day backfill, weekly check-ins, chart setup | `/journey-trackers` | journey-tracker |
 | Login (with 2FA step), register, forgot / reset password | `/login` … | auth |
 
 ## Layout

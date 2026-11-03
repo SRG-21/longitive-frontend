@@ -60,6 +60,7 @@ export interface Treatment {
 export interface Goals {
   targetWeightKg?: number
   targetBodyFatPercent?: number
+  targetWaistCm?: number
   targetSleepHours?: number
   targetDailySteps?: number
   targetWaterIntakeMl?: number

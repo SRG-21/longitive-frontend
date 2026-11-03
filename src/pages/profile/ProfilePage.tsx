@@ -209,6 +209,9 @@ function GoalsForm() {
         <Field label="Target body fat (%)">
           <Input type="number" step="0.1" {...register('targetBodyFatPercent', optionalNumber)} />
         </Field>
+        <Field label="Target waist (cm)">
+          <Input type="number" step="0.5" {...register('targetWaistCm', optionalNumber)} />
+        </Field>
         <Field label="Target sleep (hours)">
           <Input type="number" step="0.5" {...register('targetSleepHours', optionalNumber)} />
         </Field>

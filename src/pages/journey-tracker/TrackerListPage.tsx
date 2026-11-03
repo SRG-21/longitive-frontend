@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useTemplatePreview, useTrackers } from '../../hooks/useJourneyTracker'
+import { formatDate, journeyProgress, storedDay, todayIso } from '../../lib/date'
 
 export default function TrackerListPage() {
   const { data: trackers, isLoading } = useTrackers()
@@ -53,12 +54,31 @@ export default function TrackerListPage() {
             className="flex flex-col gap-1 rounded-lg border border-border bg-card p-4 text-left hover:shadow-sm"
           >
             <span className="font-medium text-foreground">{tracker.name}</span>
-            <span className="text-xs text-muted-foreground">
-              {tracker.status} · since {new Date(tracker.startDate).toLocaleDateString()}
-            </span>
+            <TrackerCardMeta status={tracker.status} start={storedDay(tracker.startDate)} end={tracker.endDate ? storedDay(tracker.endDate) : null} />
           </button>
         ))}
       </div>
     </div>
+  )
+}
+
+function TrackerCardMeta({ status, start, end }: { status: string; start: string; end: string | null }) {
+  const progress = journeyProgress(start, end, todayIso())
+  const where = !progress.started
+    ? `starts ${formatDate(start, { dateStyle: 'medium' })}`
+    : progress.finished
+      ? 'proposed end reached'
+      : progress.totalDays
+        ? `day ${progress.dayNumber} of ${progress.totalDays}`
+        : `day ${progress.dayNumber}`
+  return (
+    <>
+      <span className="text-xs text-muted-foreground">
+        {status} · {where}
+      </span>
+      <span className="text-xs text-muted-foreground">
+        {formatDate(start, { dateStyle: 'medium' })} → {end ? formatDate(end, { dateStyle: 'medium' }) : 'no end date'}
+      </span>
+    </>
   )
 }

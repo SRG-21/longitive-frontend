@@ -42,6 +42,46 @@ export function chartDate(value: string): string {
   return formatDate(value, { month: 'short', day: 'numeric' })
 }
 
+/** Whole days from one YYYY-MM-DD day to another (negative when `to` is earlier). */
+export function daysBetween(from: string, to: string): number {
+  const [fy, fm, fd] = from.split('-').map(Number)
+  const [ty, tm, td] = to.split('-').map(Number)
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000)
+}
+
+/** The last day of a journey that runs `days` days, counting the start date as day 1. */
+export function proposedEnd(start: string, days: number): string {
+  return addDays(start, days - 1)
+}
+
+/** The calendar day of a stored timestamp (the backend keeps days as UTC midnight). */
+export function storedDay(value: string): string {
+  return value.slice(0, 10)
+}
+
+export interface JourneyProgress {
+  started: boolean
+  finished: boolean
+  dayNumber: number
+  totalDays: number | null
+  daysLeft: number | null
+  daysUntilStart: number
+}
+
+export function journeyProgress(start: string, end: string | null | undefined, today: string): JourneyProgress {
+  const started = today >= start
+  const totalDays = end ? daysBetween(start, end) + 1 : null
+  const finished = !!end && today > end
+  return {
+    started,
+    finished,
+    dayNumber: started ? Math.min(daysBetween(start, today) + 1, totalDays ?? Infinity) : 0,
+    totalDays,
+    daysLeft: end && started ? Math.max(0, daysBetween(today, end)) : null,
+    daysUntilStart: started ? 0 : daysBetween(today, start),
+  }
+}
+
 export function daysAgoIso(days: number): string {
   return addDays(todayIso(), -days)
 }
