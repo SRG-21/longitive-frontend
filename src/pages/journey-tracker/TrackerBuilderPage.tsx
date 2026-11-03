@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Plus } from 'lucide-react'
@@ -13,13 +13,40 @@ import {
   useUpdateField,
   useUpdateTracker,
 } from '../../hooks/useJourneyTracker'
-import type { TrackerFieldInput, WeightLossTemplate } from '../../types/journey-tracker'
+import { getErrorMessage } from '../../lib/api'
+import type { TrackerField, TrackerFieldInput, WeightLossTemplate } from '../../types/journey-tracker'
 
 const emptyField = (): TrackerFieldInput => ({ key: '', label: '', type: 'NUMBER' })
 
 function slugifyKey(label: string) {
   return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'field'
 }
+
+/** First of `base`, `base_2`, `base_3`, … not already taken — keys are unique per tracker. */
+function uniqueKey(base: string, taken: Set<string>) {
+  if (!taken.has(base)) return base
+  let n = 2
+  while (taken.has(`${base}_${n}`)) n++
+  return `${base}_${n}`
+}
+
+/**
+ * The PATCH body for an existing field: only the properties UpdateFieldDto accepts. Sending
+ * the whole field (id, key, trackerId, …) is rejected by the backend's whitelist validation.
+ */
+function editablePatch(field: TrackerFieldInput) {
+  const { label, type, unit, options, required, chartable } = field
+  return {
+    label,
+    type,
+    unit: unit ?? undefined,
+    options: options ?? undefined,
+    required: Boolean(required),
+    chartable: Boolean(chartable),
+  }
+}
+
+const SAVE_DELAY_MS = 500
 
 export default function TrackerBuilderPage() {
   const { id } = useParams<{ id: string }>()
@@ -65,11 +92,14 @@ function NewTrackerForm({ template }: { template?: WeightLossTemplate }) {
         baseline: template?.baseline,
         targets: template?.targets,
         settings: template?.settings,
-        fields: fields.map((f, idx) => ({ ...f, key: f.key || slugifyKey(f.label), sortOrder: idx })),
+        fields: fields.reduce<TrackerFieldInput[]>((acc, f, idx) => {
+          const key = uniqueKey(f.key || slugifyKey(f.label), new Set(acc.map((a) => a.key)))
+          return [...acc, { ...f, key, sortOrder: idx }]
+        }, []),
       })
       navigate(`/journey-trackers/${tracker.id}`)
-    } catch {
-      toast.error('Could not create tracker')
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Could not create tracker'))
     }
   }
 
@@ -135,7 +165,6 @@ function ExistingTrackerBuilder({ trackerId }: { trackerId: string }) {
   const { data: tracker, isLoading } = useTracker(trackerId)
   const updateTracker = useUpdateTracker(trackerId)
   const addField = useAddField(trackerId)
-  const updateField = useUpdateField(trackerId)
   const reorderFields = useReorderFields(trackerId)
   const activateTracker = useActivateTracker(trackerId)
   const [newField, setNewField] = useState<TrackerFieldInput>(emptyField())
@@ -145,16 +174,25 @@ function ExistingTrackerBuilder({ trackerId }: { trackerId: string }) {
   const fields = (tracker.fields ?? []).filter((f) => f.isActive).sort((a, b) => a.sortOrder - b.sortOrder)
 
   const submitNewField = async () => {
-    if (!newField.label.trim()) return
+    if (!newField.label.trim()) {
+      toast.error('Give the field a label')
+      return
+    }
+    // Removed fields keep their key (and their logged values), so re-adding one with the same
+    // label reuses that key and the backend restores it. Only an active field forces a new key.
+    const baseKey = newField.key || slugifyKey(newField.label)
+    const activeKeys = new Set(fields.map((f) => f.key))
+    const restoring = (tracker.fields ?? []).some((f) => !f.isActive && f.key === baseKey)
     try {
       await addField.mutateAsync({
         ...newField,
-        key: newField.key || slugifyKey(newField.label),
+        key: uniqueKey(baseKey, activeKeys),
         sortOrder: fields.length,
       })
       setNewField(emptyField())
-    } catch {
-      toast.error('Could not add field')
+      toast.success(restoring ? `Restored "${newField.label}" with its previous entries` : `Added "${newField.label}"`)
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Could not add field'))
     }
   }
 
@@ -198,11 +236,10 @@ function ExistingTrackerBuilder({ trackerId }: { trackerId: string }) {
       <div className="flex flex-col gap-2">
         <h2 className="font-medium text-foreground">Fields</h2>
         {fields.map((field, index) => (
-          <FieldEditor
+          <ExistingFieldRow
             key={field.id}
+            trackerId={trackerId}
             field={field}
-            onChange={(f) => updateField.mutate({ fieldId: field.id, dto: f })}
-            onRemove={() => updateField.mutate({ fieldId: field.id, dto: { isActive: false } })}
             onMoveUp={() => moveField(index, -1)}
             onMoveDown={() => moveField(index, 1)}
           />
@@ -217,12 +254,77 @@ function ExistingTrackerBuilder({ trackerId }: { trackerId: string }) {
           <button
             type="button"
             onClick={submitNewField}
-            className="w-fit rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-accent"
+            disabled={addField.isPending}
+            className="w-fit rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-accent disabled:opacity-60"
           >
-            Add this field
+            {addField.isPending ? 'Adding…' : 'Add this field'}
           </button>
         </div>
       </div>
     </div>
   )
+}
+
+/**
+ * Edits one saved field. Keystrokes update a local draft immediately and are saved after a
+ * short pause, so the inputs stay responsive and a failed save is reported instead of the
+ * typed text silently snapping back to the server value.
+ */
+function ExistingFieldRow({
+  trackerId,
+  field,
+  onMoveUp,
+  onMoveDown,
+}: {
+  trackerId: string
+  field: TrackerField
+  onMoveUp: () => void
+  onMoveDown: () => void
+}) {
+  const updateField = useUpdateField(trackerId)
+  const [draft, setDraft] = useState<TrackerFieldInput>(field)
+  const pending = useRef<{ timer: number; value: TrackerFieldInput } | null>(null)
+  const { mutate } = updateField
+
+  const save = (value: TrackerFieldInput) => {
+    pending.current = null
+    if (!value.label.trim()) return
+    mutate(
+      { fieldId: field.id, dto: editablePatch(value) },
+      {
+        onError: (err) => {
+          toast.error(getErrorMessage(err, `Could not save "${value.label}"`))
+          setDraft(field)
+        },
+      },
+    )
+  }
+
+  const onChange = (next: TrackerFieldInput) => {
+    setDraft(next)
+    if (pending.current) window.clearTimeout(pending.current.timer)
+    pending.current = { value: next, timer: window.setTimeout(() => save(next), SAVE_DELAY_MS) }
+  }
+
+  // Flush an edit that's still waiting on the debounce if the row unmounts (e.g. navigating away).
+  useEffect(
+    () => () => {
+      if (!pending.current) return
+      window.clearTimeout(pending.current.timer)
+      const { value } = pending.current
+      if (value.label.trim()) mutate({ fieldId: field.id, dto: editablePatch(value) })
+    },
+    [field.id, mutate],
+  )
+
+  const remove = () => {
+    if (pending.current) window.clearTimeout(pending.current.timer)
+    pending.current = null
+    mutate(
+      { fieldId: field.id, dto: { isActive: false } },
+      { onError: (err) => toast.error(getErrorMessage(err, `Could not remove "${field.label}"`)) },
+    )
+  }
+
+  return <FieldEditor field={draft} onChange={onChange} onRemove={remove} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />
 }
