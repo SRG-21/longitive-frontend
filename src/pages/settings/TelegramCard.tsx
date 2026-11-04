@@ -104,7 +104,7 @@ function LinkedView({ status, onDisconnected }: { status: TelegramStatus; onDisc
   const test = useTelegramTest()
   const { timeZone } = status.schedule
 
-  const toggle = (key: 'dailyReminder' | 'missedDayAlert') =>
+  const toggle = (key: 'dailyReminder' | 'missedDayAlert' | 'weeklyReview') =>
     update.mutate({ [key]: !status[key] }, { onError: (err) => toast.error(getErrorMessage(err, 'Could not update the alert')) })
 
   const sendTest = async () => {
@@ -136,6 +136,11 @@ function LinkedView({ status, onDisconnected }: { status: TelegramStatus; onDisc
       key: 'missedDayAlert' as const,
       label: `Missed-day alert at ${formatTime(status.schedule.missedDayAlert, timeZone)}`,
       hint: 'If the day ends without a log',
+    },
+    {
+      key: 'weeklyReview' as const,
+      label: "Claude's weekly review",
+      hint: 'When each week of a journey finishes',
     },
   ]
 

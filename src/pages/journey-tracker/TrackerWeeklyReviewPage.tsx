@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import TrackerHeader from '../../components/journey-tracker/TrackerHeader'
 import WeeklyCheckins from '../../components/journey-tracker/WeeklyCheckins'
+import ClaudeReviewCard from '../../components/journey-tracker/ClaudeReviewCard'
 import { Card, Loading, ProgressBar, Stat } from '../../components/ui'
 import { useLoggingStatus, useTracker, useWeeklyReview } from '../../hooks/useJourneyTracker'
 import { formatDate, todayIso } from '../../lib/date'
@@ -54,6 +55,8 @@ export default function TrackerWeeklyReviewPage() {
           <Stat label="Habits completed" value={`${review.completedHabitsPercentage}%`} hint="Required daily fields, last 7 days" />
         </div>
       )}
+
+      <ClaudeReviewCard trackerId={id} />
 
       <Card title="Last 7 days">
         {review ? (

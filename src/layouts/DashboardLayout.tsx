@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
+import { loginPathFor } from '../lib/redirect'
 
 const navGroups = [
   {
@@ -62,7 +63,7 @@ export default function DashboardLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   if (!accessToken) {
-    return <Navigate to="/login" replace />
+    return <Navigate to={loginPathFor(location)} replace />
   }
 
   return (

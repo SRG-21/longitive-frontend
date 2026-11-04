@@ -88,6 +88,7 @@ export interface TelegramStatus {
   linkPending: boolean
   dailyReminder: boolean
   missedDayAlert: boolean
+  weeklyReview: boolean
   /** HH:mm in `timeZone`. */
   schedule: { dailyReminder: string; missedDayAlert: string; timeZone: string }
 }

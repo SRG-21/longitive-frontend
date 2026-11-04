@@ -194,7 +194,7 @@ export function useUnlinkTelegram() {
 export function useUpdateTelegramPreferences() {
   const setStatus = useSetTelegramStatus()
   return useMutation({
-    mutationFn: async (dto: { dailyReminder?: boolean; missedDayAlert?: boolean }) =>
+    mutationFn: async (dto: { dailyReminder?: boolean; missedDayAlert?: boolean; weeklyReview?: boolean }) =>
       (await api.patch<TelegramStatus>('/telegram/preferences', dto)).data,
     onSuccess: setStatus,
   })

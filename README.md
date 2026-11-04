@@ -26,7 +26,9 @@ npm run dev            # http://localhost:5173
 | Medicine cabinet (stock, reorder and expiry alerts) | `/inventory` | inventory |
 | AI chat, insights, biological age, what-if, first aid | `/ai/*` | ai |
 | Profile, medical history, lifestyle, goals | `/profile` | user |
-| Telegram logging alerts (3:00 pm reminder, 11:30 pm missed-day alert), notification preferences, two-factor setup | `/settings` | telegram, notifications, auth |
+| Claude connector (MCP URL, connected apps), Telegram logging alerts, notification preferences, two-factor setup | `/settings` | mcp/oauth, telegram, notifications, auth |
+| Claude's journey reviews (weekly + "Review now") | `/journey-trackers/:id/weekly-review` | claude |
+| OAuth consent for MCP clients such as Claude | `/oauth/consent` | mcp/oauth |
 | Journey trackers: start/proposed end date, targets, daily vs weekly fields, missed-day backfill, weekly check-ins, chart setup | `/journey-trackers` | journey-tracker |
 | Login (with 2FA step), register, forgot / reset password | `/login` … | auth |
 

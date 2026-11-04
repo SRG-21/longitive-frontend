@@ -7,6 +7,7 @@ import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
+import OAuthConsent from './pages/auth/OAuthConsent'
 
 // Signed-in pages are split per route (DashboardLayout wraps them in Suspense) so the
 // login screen doesn't download recharts, the table library and every feature page.
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
           { path: '/register', element: <Register /> },
           { path: '/forgot-password', element: <ForgotPassword /> },
           { path: '/reset-password', element: <ResetPassword /> },
+          { path: '/oauth/consent', element: <OAuthConsent /> },
         ],
       },
       {

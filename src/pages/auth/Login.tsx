@@ -2,10 +2,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { api, getErrorMessage } from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
+import { safeNextPath } from '../../lib/redirect'
 
 const schema = z.object({
   email: z.string().email(),
@@ -17,6 +18,7 @@ type FormValues = z.infer<typeof schema>
 
 export default function Login() {
   const navigate = useNavigate()
+  const next = safeNextPath(useSearchParams()[0].get('next'))
   const setSession = useAuthStore((s) => s.setSession)
   const [preAuthToken, setPreAuthToken] = useState<string | null>(null)
   const {
@@ -33,7 +35,7 @@ export default function Login() {
         return
       }
       setSession(data)
-      navigate('/')
+      navigate(next)
     } catch (err) {
       toast.error(getErrorMessage(err, 'Login failed'))
     }
@@ -83,6 +85,7 @@ export default function Login() {
 
 function TwoFactorStep({ preAuthToken, onCancel }: { preAuthToken: string; onCancel: () => void }) {
   const navigate = useNavigate()
+  const next = safeNextPath(useSearchParams()[0].get('next'))
   const setSession = useAuthStore((s) => s.setSession)
   const [code, setCode] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -93,7 +96,7 @@ function TwoFactorStep({ preAuthToken, onCancel }: { preAuthToken: string; onCan
     try {
       const { data } = await api.post('/auth/2fa/login', { preAuthToken, code })
       setSession(data)
-      navigate('/')
+      navigate(next)
     } catch (err) {
       toast.error(getErrorMessage(err, 'Invalid code'))
       // The challenge token only lives for 5 minutes; once it's gone, start over.

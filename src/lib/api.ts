@@ -1,5 +1,6 @@
 import axios, { type AxiosRequestConfig, isAxiosError } from 'axios'
 import { useAuthStore } from '../stores/authStore'
+import { loginPathFor } from './redirect'
 
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
@@ -48,14 +49,14 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch {
         useAuthStore.getState().logout()
-        window.location.href = '/login'
+        window.location.href = loginPathFor(window.location)
         return Promise.reject(error)
       }
     }
 
     if (error.response?.status === 401) {
       useAuthStore.getState().logout()
-      window.location.href = '/login'
+      window.location.href = loginPathFor(window.location)
     }
 
     return Promise.reject(error)

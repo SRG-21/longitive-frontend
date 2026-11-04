@@ -13,6 +13,7 @@ import { getErrorMessage } from '../../lib/api'
 import { Badge, Button, Card, Field, Input, Loading, PageHeader } from '../../components/ui'
 import type { NotificationChannel, NotificationPreference } from '../../types/profile'
 import TelegramCard from './TelegramCard'
+import ClaudeCard from './ClaudeCard'
 
 const CHANNELS: { channel: NotificationChannel; label: string; icon: typeof Mail }[] = [
   { channel: 'PUSH', label: 'Push notifications', icon: Smartphone },
@@ -180,6 +181,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Settings" description="Notifications and account security." />
+      <ClaudeCard />
       <TelegramCard />
       <Notifications />
       <TwoFactor />
