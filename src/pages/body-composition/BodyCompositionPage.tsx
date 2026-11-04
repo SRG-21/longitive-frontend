@@ -16,34 +16,10 @@ import { compact, optionalNumber } from '../../lib/form'
 import { Badge, Button, Card, EmptyState, Field, Input, Loading, PageHeader, Select, Stat } from '../../components/ui'
 import FileDropzone from '../../components/FileDropzone'
 import type { BodyCompositionMetric } from '../../types/health'
+import MeasurementDetail from './MeasurementDetail'
+import { METRIC_GROUPS, METRICS, metricMeta } from './metrics'
 
-const METRICS: { int?: boolean; key: BodyCompositionMetric; label: string; unit: string; group: 'Body' | 'Measurements' | 'Vitals' }[] = [
-  { key: 'weight', label: 'Weight', unit: 'kg', group: 'Body' },
-  { key: 'height', label: 'Height', unit: 'cm', group: 'Body' },
-  { key: 'bmi', label: 'BMI', unit: '', group: 'Body' },
-  { key: 'bodyFat', label: 'Body fat', unit: '%', group: 'Body' },
-  { key: 'visceralFat', label: 'Visceral fat', unit: '', group: 'Body' },
-  { key: 'subcutaneousFat', label: 'Subcutaneous fat', unit: '%', group: 'Body' },
-  { key: 'muscleMass', label: 'Muscle mass', unit: 'kg', group: 'Body' },
-  { key: 'boneMass', label: 'Bone mass', unit: 'kg', group: 'Body' },
-  { key: 'bodyWater', label: 'Body water', unit: '%', group: 'Body' },
-  { key: 'bmr', label: 'BMR', unit: 'kcal', group: 'Body' },
-  { int: true, key: 'metabolicAge', label: 'Metabolic age', unit: 'yrs', group: 'Body' },
-  { key: 'waist', label: 'Waist', unit: 'cm', group: 'Measurements' },
-  { key: 'hip', label: 'Hip', unit: 'cm', group: 'Measurements' },
-  { key: 'chest', label: 'Chest', unit: 'cm', group: 'Measurements' },
-  { int: true, key: 'bloodPressureSystolic', label: 'BP systolic', unit: 'mmHg', group: 'Vitals' },
-  { int: true, key: 'bloodPressureDiastolic', label: 'BP diastolic', unit: 'mmHg', group: 'Vitals' },
-  { int: true, key: 'heartRate', label: 'Resting heart rate', unit: 'bpm', group: 'Vitals' },
-  { key: 'spo2', label: 'SpO₂', unit: '%', group: 'Vitals' },
-]
-
-const TREND_METRICS = ['weight', 'bmi', 'bodyFat', 'muscleMass', 'visceralFat'] as const
-const TABLE_METRICS: BodyCompositionMetric[] = ['weight', 'bmi', 'bodyFat', 'muscleMass', 'visceralFat', 'waist', 'heartRate']
-
-function metricMeta(key: BodyCompositionMetric) {
-  return METRICS.find((m) => m.key === key)!
-}
+const TABLE_METRICS: BodyCompositionMetric[] = ['weight', 'bmi', 'bodyFat', 'skeletalMuscleMass', 'visceralFat', 'waist', 'heartRate']
 
 export default function BodyCompositionPage() {
   const { data: history, isLoading } = useBodyCompositionHistory()
@@ -52,6 +28,7 @@ export default function BodyCompositionPage() {
   const ocr = useBodyCompositionOcr()
   const [chartMetric, setChartMetric] = useState<BodyCompositionMetric>('weight')
   const [showForm, setShowForm] = useState(false)
+  const [selectedId, setSelectedId] = useState<string>()
 
   const { register, handleSubmit, reset, control, setValue } = useForm<BodyCompositionInput>({ defaultValues: { date: todayIso() } })
   const [weight, height] = useWatch({ control, name: ['weight', 'height'] })
@@ -78,6 +55,7 @@ export default function BodyCompositionPage() {
   const onUpload = async (file: File) => {
     try {
       const record = await ocr.mutateAsync(file)
+      setSelectedId(record.id)
       if (record.alreadyUploaded) toast(`You already uploaded this file — it's the ${formatDate(record.date)} measurement`, { icon: 'ℹ️' })
       else toast.success(`Extracted measurement for ${formatDate(record.date)}`)
     } catch (err) {
@@ -90,6 +68,10 @@ export default function BodyCompositionPage() {
   }
 
   const latest = history?.[0]
+  // Smart scales like Cult report skeletal muscle rather than total muscle mass.
+  const muscleKey = latest?.muscleMass == null && latest?.skeletalMuscleMass != null ? 'skeletalMuscleMass' : 'muscleMass'
+  const trendMetrics = ['weight', 'bmi', 'bodyFat', muscleKey, 'visceralFat'] as const
+  const selected = history?.find((h) => h.id === selectedId) ?? latest
 
   return (
     <div className="flex flex-col gap-6">
@@ -100,7 +82,7 @@ export default function BodyCompositionPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {TREND_METRICS.map((key) => {
+        {trendMetrics.map((key) => {
           const meta = metricMeta(key)
           const trend = trends?.trends[key]
           const Icon = trend?.direction === 'up' ? ArrowUpRight : trend?.direction === 'down' ? ArrowDownRight : ArrowRight
@@ -130,13 +112,13 @@ export default function BodyCompositionPage() {
               <Field label="Date" className="max-w-xs">
                 <Input type="date" max={todayIso()} {...register('date', { required: true })} />
               </Field>
-              {(['Body', 'Measurements', 'Vitals'] as const).map((group) => (
+              {METRIC_GROUPS.map((group) => (
                 <fieldset key={group} className="flex flex-col gap-2">
                   <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</legend>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {METRICS.filter((m) => m.group === group).map((m) => (
                       <Field key={m.key} label={`${m.label}${m.unit ? ` (${m.unit})` : ''}`}>
-                        <Input type="number" step={m.int ? 1 : 'any'} {...register(m.key, optionalNumber)} />
+                        <Input type="number" step={m.int ? 1 : 'any'} min={m.signed ? undefined : 0} {...register(m.key, optionalNumber)} />
                       </Field>
                     ))}
                   </div>
@@ -153,11 +135,16 @@ export default function BodyCompositionPage() {
             </form>
           </Card>
           <Card title="Or scan a report">
-            <p className="mb-3 text-sm text-muted-foreground">Upload a smart-scale or InBody printout and we'll extract the values automatically.</p>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Upload a smart-scale report (e.g. a Cult Smart Scale screenshot) or an InBody printout and we'll extract every value, including the
+              segmental analysis.
+            </p>
             <FileDropzone onFile={onUpload} busy={ocr.isPending} label="Upload body composition report" />
           </Card>
         </div>
       )}
+
+      {selected && <MeasurementDetail m={selected} />}
 
       <Card
         title="Trend"
@@ -207,7 +194,12 @@ export default function BodyCompositionPage() {
               </thead>
               <tbody>
                 {history.map((row) => (
-                  <tr key={row.id} className="border-b border-border last:border-0">
+                  <tr
+                    key={row.id}
+                    onClick={() => setSelectedId(row.id)}
+                    aria-selected={row.id === selected?.id}
+                    className={`cursor-pointer border-b border-border last:border-0 hover:bg-muted/50 ${row.id === selected?.id ? 'bg-muted' : ''}`}
+                  >
                     <td className="py-2 pr-3 whitespace-nowrap">{formatDate(row.date)}</td>
                     {TABLE_METRICS.map((key) => (
                       <td key={key} className="py-2 pr-3">

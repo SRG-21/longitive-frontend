@@ -13,20 +13,31 @@ export interface OcrInfo {
 /** OCR uploads say whether the same file had been uploaded before (then nothing new was created). */
 export type OcrUpload<T> = T & { alreadyUploaded?: boolean }
 
-export interface BodyComposition extends OcrInfo {
-  id: string
-  date: string
+/** Numeric body-composition values (masses in kg); every one can be charted. */
+export interface BodyCompositionValues {
   height?: number | null
   weight?: number | null
   bmi?: number | null
   bodyFat?: number | null
+  fatMass?: number | null
   visceralFat?: number | null
   subcutaneousFat?: number | null
+  subcutaneousFatMass?: number | null
   muscleMass?: number | null
+  skeletalMuscleMass?: number | null
   boneMass?: number | null
   bodyWater?: number | null
+  bodyWaterMass?: number | null
+  proteinMass?: number | null
+  mineralMass?: number | null
   bmr?: number | null
   metabolicAge?: number | null
+  bodyScore?: number | null
+  age?: number | null
+  standardWeight?: number | null
+  weightControl?: number | null
+  fatControl?: number | null
+  muscleControl?: number | null
   waist?: number | null
   hip?: number | null
   chest?: number | null
@@ -34,15 +45,35 @@ export interface BodyComposition extends OcrInfo {
   bloodPressureDiastolic?: number | null
   heartRate?: number | null
   spo2?: number | null
+}
+
+export interface BodySegment {
+  mass?: number | null
+  percent?: number | null
+}
+
+export type BodySegmentKey = 'leftArm' | 'rightArm' | 'trunk' | 'leftLeg' | 'rightLeg'
+export type BodySegments = Partial<Record<BodySegmentKey, BodySegment | null>>
+
+export interface BodyComposition extends OcrInfo, BodyCompositionValues {
+  id: string
+  date: string
+  measuredTime?: string | null
+  bodyType?: string | null
+  segmentalFat?: BodySegments | null
+  segmentalMuscle?: BodySegments | null
+  deviceName?: string | null
+  deviceId?: string | null
+  reportName?: string | null
   source: 'MANUAL' | 'OCR'
   sourceImageUrl?: string | null
 }
 
-export type BodyCompositionMetric = Exclude<keyof BodyComposition, 'id' | 'date' | 'source' | 'sourceImageUrl' | keyof OcrInfo>
+export type BodyCompositionMetric = keyof BodyCompositionValues
 
 export interface BodyCompositionTrends {
   records: BodyComposition[]
-  trends: Partial<Record<'weight' | 'bmi' | 'bodyFat' | 'muscleMass' | 'visceralFat', { change: number; direction: 'up' | 'down' | 'stable' }>>
+  trends: Partial<Record<'weight' | 'bmi' | 'bodyFat' | 'muscleMass' | 'skeletalMuscleMass' | 'visceralFat', { change: number; direction: 'up' | 'down' | 'stable' }>>
 }
 
 export type TestStatus = 'NORMAL' | 'LOW' | 'HIGH' | 'CRITICAL'
