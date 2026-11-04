@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import AddFieldPanel from '../../components/journey-tracker/AddFieldPanel'
+import DeleteTrackerDialog from '../../components/journey-tracker/DeleteTrackerDialog'
 import FieldEditor from '../../components/journey-tracker/FieldEditor'
 import ScheduleEditor from '../../components/journey-tracker/ScheduleEditor'
 import TargetsEditor, { type TargetField } from '../../components/journey-tracker/TargetsEditor'
 import TrackerHeader from '../../components/journey-tracker/TrackerHeader'
-import { isNumericField, resolveKeys } from '../../components/journey-tracker/fieldKeys'
-import { Button, Card, Field, Input } from '../../components/ui'
+import { isTargetField, resolveKeys } from '../../components/journey-tracker/fieldKeys'
+import { Badge, Button, Card, EmptyState, Field, Input } from '../../components/ui'
 import {
   useActivateTracker,
   useCreateTracker,
@@ -47,11 +48,36 @@ function durationOf(settings: unknown): number | null {
   return typeof days === 'number' ? days : null
 }
 
-function toTargetFields(fields: { key: string; label: string; unit?: string | null; target?: Record<string, number> | null; type: string }[]): TargetField[] {
+function toTargetFields(
+  fields: { key: string; label: string; unit?: string | null; target?: Record<string, number> | null; type: string; cadence?: string | null }[],
+): TargetField[] {
   return fields
-    .filter((f) => f.type !== 'FORMULA' && isNumericField(f) && f.label.trim())
+    .filter((f) => isTargetField(f) && f.label.trim())
     .map((f) => ({ key: f.key, label: f.label, unit: f.unit, goal: f.target?.goal }))
 }
+
+// Every Setup section saves on its own. Each registers a flush that finishes whatever it still
+// has pending, so Activate never runs ahead of a schedule or target change the user just made.
+type Flush = () => Promise<void>
+const PendingSavesContext = createContext<(flush: Flush) => () => void>(() => () => {})
+
+/** Registers `flush` with the page for as long as the component is mounted (re-registered each render). */
+function usePendingSave(flush: Flush) {
+  const register = useContext(PendingSavesContext)
+  useEffect(() => register(flush))
+}
+
+type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
+
+function SaveStatus({ state }: { state: SaveState }) {
+  if (state === 'pending' || state === 'saving') return <span className="text-xs text-muted-foreground">Saving…</span>
+  if (state === 'saved') return <Badge tone="green">Saved</Badge>
+  if (state === 'error') return <Badge tone="red">Not saved</Badge>
+  return null
+}
+
+const SCHEDULE_SAVE_DELAY_MS = 700
+const isPlausibleDay = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) && day >= '1900-01-01'
 
 export default function TrackerBuilderPage() {
   const { id } = useParams<{ id: string }>()
@@ -170,12 +196,27 @@ function NewTrackerForm({ template }: { template?: WeightLossTemplate }) {
 }
 
 function ExistingTrackerBuilder({ trackerId }: { trackerId: string }) {
-  const { data: tracker, isLoading } = useTracker(trackerId)
+  const { data: tracker, isLoading, isError } = useTracker(trackerId)
   const updateTracker = useUpdateTracker(trackerId)
   const reorderFields = useReorderFields(trackerId)
   const activateTracker = useActivateTracker(trackerId)
+  const navigate = useNavigate()
+  const [deleting, setDeleting] = useState(false)
+  const flushers = useRef(new Set<Flush>())
+  const register = useCallback((flush: Flush) => {
+    flushers.current.add(flush)
+    return () => {
+      flushers.current.delete(flush)
+    }
+  }, [])
 
+  if (isError && !tracker) return <EmptyState>This tracker doesn't exist or was deleted.</EmptyState>
   if (isLoading || !tracker) return <p className="text-muted-foreground">Loading…</p>
+
+  const activate = async () => {
+    await Promise.all([...flushers.current].map((flush) => flush()))
+    activateTracker.mutate(undefined, { onError: (err) => toast.error(getErrorMessage(err, 'Could not activate the tracker')) })
+  }
 
   const fields = (tracker.fields ?? []).filter((f) => f.isActive).sort((a, b) => a.sortOrder - b.sortOrder)
 
@@ -195,7 +236,7 @@ function ExistingTrackerBuilder({ trackerId }: { trackerId: string }) {
         showTabs={tracker.status === 'ACTIVE'}
         actions={
           tracker.status === 'DRAFT' && (
-            <Button onClick={() => activateTracker.mutate()} loading={activateTracker.isPending}>
+            <Button onClick={activate} loading={activateTracker.isPending}>
               Activate
             </Button>
           )
@@ -203,76 +244,122 @@ function ExistingTrackerBuilder({ trackerId }: { trackerId: string }) {
       />
       {tracker.status === 'DRAFT' && <p className="text-sm text-muted-foreground">Status: DRAFT — activate it when the setup looks right.</p>}
 
-      <Card title="Name">
-        <Input
-          defaultValue={tracker.name}
-          onBlur={(e) => e.target.value.trim() && e.target.value !== tracker.name && updateTracker.mutate({ name: e.target.value })}
-        />
-      </Card>
+      <PendingSavesContext.Provider value={register}>
+        <Card title="Name">
+          <Input
+            defaultValue={tracker.name}
+            onBlur={(e) => e.target.value.trim() && e.target.value !== tracker.name && updateTracker.mutate({ name: e.target.value })}
+          />
+        </Card>
 
-      <ScheduleCard tracker={tracker} />
-      <TargetsCard tracker={tracker} />
+        <ScheduleCard tracker={tracker} />
+        <TargetsCard tracker={tracker} />
 
-      <Card title="Fields">
-        <div className="flex flex-col gap-2">
-          {fields.map((field, index) => (
-            <ExistingFieldRow
-              key={field.id}
-              trackerId={trackerId}
-              field={field}
-              onMoveUp={() => moveField(index, -1)}
-              onMoveDown={() => moveField(index, 1)}
-            />
-          ))}
-          <AddFieldPanel tracker={tracker} />
+        <Card title="Fields">
+          <div className="flex flex-col gap-2">
+            {fields.map((field, index) => (
+              <ExistingFieldRow
+                key={field.id}
+                trackerId={trackerId}
+                field={field}
+                onMoveUp={() => moveField(index, -1)}
+                onMoveDown={() => moveField(index, 1)}
+              />
+            ))}
+            <AddFieldPanel tracker={tracker} />
+          </div>
+        </Card>
+      </PendingSavesContext.Provider>
+
+      <Card title="Delete tracker">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Permanently remove this tracker and everything logged in it.</p>
+          <Button variant="outline" onClick={() => setDeleting(true)} className="border-destructive/40 text-destructive hover:bg-destructive/10">
+            <Trash2 size={14} /> Delete tracker
+          </Button>
         </div>
       </Card>
+      {deleting && <DeleteTrackerDialog tracker={tracker} onClose={() => setDeleting(false)} onDeleted={() => navigate('/journey-trackers')} />}
     </div>
   )
 }
 
+/** Saves a moment after the dates stop changing; nothing to press, and Activate waits for it. */
 function ScheduleCard({ tracker }: { tracker: JourneyTracker }) {
-  const updateTracker = useUpdateTracker(tracker.id)
-  const saved = { start: storedDay(tracker.startDate), end: tracker.endDate ? storedDay(tracker.endDate) : '' }
-  const [schedule, setSchedule] = useState(saved)
-  const dirty = schedule.start !== saved.start || schedule.end !== saved.end
+  const { mutateAsync } = useUpdateTracker(tracker.id)
+  const [schedule, setSchedule] = useState(() => ({
+    start: storedDay(tracker.startDate),
+    end: tracker.endDate ? storedDay(tracker.endDate) : '',
+  }))
+  const [state, setState] = useState<SaveState>('idle')
+  const pending = useRef<{ timer: number; value: typeof schedule } | null>(null)
+  const inFlight = useRef<Promise<void> | null>(null)
 
-  const save = async () => {
-    try {
-      await updateTracker.mutateAsync({ startDate: schedule.start, endDate: schedule.end || null })
-      toast.success('Schedule saved')
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Could not save the schedule'))
+  const persist = useCallback(
+    (value: { start: string; end: string }) => {
+      pending.current = null
+      setState('saving')
+      inFlight.current = mutateAsync({ startDate: value.start, endDate: value.end || null }).then(
+        () => setState('saved'),
+        (err) => {
+          setState('error')
+          toast.error(getErrorMessage(err, 'Could not save the schedule'))
+        },
+      )
+      return inFlight.current
+    },
+    [mutateAsync],
+  )
+
+  const onChange = (next: { start: string; end: string }) => {
+    setSchedule(next)
+    if (pending.current) window.clearTimeout(pending.current.timer)
+    pending.current = null
+    // The date inputs report each keystroke; only save a complete, consistent schedule.
+    if (!isPlausibleDay(next.start) || (next.end && (!isPlausibleDay(next.end) || next.end < next.start))) {
+      setState('idle')
+      return
     }
+    setState('pending')
+    pending.current = { value: next, timer: window.setTimeout(() => persist(next), SCHEDULE_SAVE_DELAY_MS) }
   }
 
+  usePendingSave(async () => {
+    if (pending.current) {
+      window.clearTimeout(pending.current.timer)
+      await persist(pending.current.value)
+    }
+    await inFlight.current
+  })
+
+  // Leaving the page within the delay still saves.
+  useEffect(
+    () => () => {
+      if (!pending.current) return
+      window.clearTimeout(pending.current.timer)
+      void persist(pending.current.value)
+    },
+    [persist],
+  )
+
   return (
-    <Card title="Schedule">
-      <div className="flex flex-col gap-3">
-        <ScheduleEditor start={schedule.start} end={schedule.end} onChange={setSchedule} proposedDays={durationOf(tracker.settings)} />
-        <div className="flex items-center gap-2">
-          <Button onClick={save} loading={updateTracker.isPending} disabled={!dirty}>
-            Save schedule
-          </Button>
-          {dirty && (
-            <Button variant="ghost" onClick={() => setSchedule(saved)}>
-              Reset
-            </Button>
-          )}
-        </div>
-      </div>
+    <Card title="Schedule" actions={<SaveStatus state={state} />}>
+      <ScheduleEditor start={schedule.start} end={schedule.end} onChange={onChange} proposedDays={durationOf(tracker.settings)} />
     </Card>
   )
 }
 
+/** Saves when an input loses focus or a fill button is used. */
 function TargetsCard({ tracker }: { tracker: JourneyTracker }) {
-  const updateTracker = useUpdateTracker(tracker.id)
-  const original = { baseline: tracker.baseline ?? {}, targets: tracker.targets ?? {} }
-  const [numbers, setNumbers] = useState(original)
+  const { mutateAsync } = useUpdateTracker(tracker.id)
+  const [numbers, setNumbers] = useState(() => ({ baseline: tracker.baseline ?? {}, targets: tracker.targets ?? {} }))
+  const [state, setState] = useState<SaveState>('idle')
+  const lastSaved = useRef(JSON.stringify(numbers))
+  const inFlight = useRef<Promise<void> | null>(null)
   const targetFields = toTargetFields((tracker.fields ?? []).filter((f) => f.isActive).sort((a, b) => a.sortOrder - b.sortOrder))
-  const dirty = JSON.stringify(numbers) !== JSON.stringify(original)
 
-  // Values for fields that aren't listed here (removed fields) are kept as they were.
+  // Values for fields that aren't listed here (removed fields, or non-measurement fields from
+  // older trackers) are kept exactly as stored.
   const merge = (stored: Record<string, number>, edited: Record<string, number>) => {
     const next = { ...stored }
     for (const f of targetFields) {
@@ -282,26 +369,31 @@ function TargetsCard({ tracker }: { tracker: JourneyTracker }) {
     return next
   }
 
-  const save = async () => {
-    try {
-      await updateTracker.mutateAsync({
-        baseline: merge(original.baseline, numbers.baseline),
-        targets: merge(original.targets, numbers.targets),
-      })
-      toast.success('Targets saved')
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Could not save targets'))
-    }
+  const commit = (values: typeof numbers) => {
+    const key = JSON.stringify(values)
+    if (key === lastSaved.current) return
+    lastSaved.current = key
+    setState('saving')
+    inFlight.current = mutateAsync({
+      baseline: merge(tracker.baseline ?? {}, values.baseline),
+      targets: merge(tracker.targets ?? {}, values.targets),
+    }).then(
+      () => setState('saved'),
+      (err) => {
+        lastSaved.current = '' // let the next blur try again
+        setState('error')
+        toast.error(getErrorMessage(err, 'Could not save targets'))
+      },
+    )
   }
 
+  usePendingSave(async () => {
+    await inFlight.current
+  })
+
   return (
-    <Card title="Starting point & targets">
-      <div className="flex flex-col gap-3">
-        <TargetsEditor fields={targetFields} baseline={numbers.baseline} targets={numbers.targets} onChange={setNumbers} />
-        <Button onClick={save} loading={updateTracker.isPending} disabled={!dirty} className="w-fit">
-          Save targets
-        </Button>
-      </div>
+    <Card title="Starting point & targets" actions={<SaveStatus state={state} />}>
+      <TargetsEditor fields={targetFields} baseline={numbers.baseline} targets={numbers.targets} onChange={setNumbers} onCommit={commit} />
     </Card>
   )
 }
@@ -346,6 +438,14 @@ function ExistingFieldRow({
     if (pending.current) window.clearTimeout(pending.current.timer)
     pending.current = { value: next, timer: window.setTimeout(() => save(next), SAVE_DELAY_MS) }
   }
+
+  usePendingSave(async () => {
+    if (!pending.current) return
+    window.clearTimeout(pending.current.timer)
+    const { value } = pending.current
+    pending.current = null
+    if (value.label.trim()) await new Promise<void>((resolve) => mutate({ fieldId: field.id, dto: editablePatch(value) }, { onSettled: () => resolve() }))
+  })
 
   // Flush an edit that's still waiting on the debounce if the row unmounts (e.g. navigating away).
   useEffect(

@@ -18,6 +18,8 @@ interface Props {
   baseline: Numbers
   targets: Numbers
   onChange: (next: { baseline: Numbers; targets: Numbers }) => void
+  /** Called when an edit is finished (an input loses focus, or a fill button is used). */
+  onCommit?: (next: { baseline: Numbers; targets: Numbers }) => void
 }
 
 // Profile goals and body measurements use their own names; these map them onto tracker field keys.
@@ -25,9 +27,6 @@ const GOAL_FOR_KEY: Record<string, string> = {
   weight: 'targetWeightKg',
   waist: 'targetWaistCm',
   bodyFatPct: 'targetBodyFatPercent',
-  steps: 'targetDailySteps',
-  sleep: 'targetSleepHours',
-  water: 'targetWaterIntakeMl',
 }
 const MEASUREMENT_FOR_KEY: Record<string, 'weight' | 'waist' | 'bodyFat'> = {
   weight: 'weight',
@@ -42,7 +41,7 @@ function withValue(record: Numbers, key: string, raw: string): Numbers {
   return next
 }
 
-export default function TargetsEditor({ fields, baseline, targets, onChange }: Props) {
+export default function TargetsEditor({ fields, baseline, targets, onChange, onCommit }: Props) {
   const { data: goals } = useGoals()
   const { data: measurements } = useBodyCompositionHistory()
   const latest = measurements?.[0]
@@ -60,6 +59,7 @@ export default function TargetsEditor({ fields, baseline, targets, onChange }: P
     if (!filled) toast.error('None of these fields match a goal in your profile. Add goals under Profile → Goals.')
     else {
       onChange({ baseline, targets: next })
+      onCommit?.({ baseline, targets: next })
       toast.success(`Filled ${filled} target${filled === 1 ? '' : 's'} from your profile goals`)
     }
   }
@@ -78,11 +78,19 @@ export default function TargetsEditor({ fields, baseline, targets, onChange }: P
     if (!filled) toast.error('No matching measurements found. Add one under Body composition.')
     else {
       onChange({ baseline: next, targets })
+      onCommit?.({ baseline: next, targets })
       toast.success(`Filled ${filled} starting value${filled === 1 ? '' : 's'} from your latest measurements`)
     }
   }
 
-  if (!fields.length) return <EmptyState>Add a number field to set a starting value and a target for it.</EmptyState>
+  if (!fields.length) {
+    return (
+      <EmptyState>
+        Targets are for body measurements. Add a Weight or Waist field, or tick <strong>Weekly entry</strong> on a number field you
+        measure, to set a starting value and target for it.
+      </EmptyState>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -109,6 +117,7 @@ export default function TargetsEditor({ fields, baseline, targets, onChange }: P
                     aria-label={`${f.label} starting value`}
                     value={baseline[f.key] ?? ''}
                     onChange={(e) => onChange({ baseline: withValue(baseline, f.key, e.target.value), targets })}
+                    onBlur={() => onCommit?.({ baseline, targets })}
                     className="w-32"
                   />
                 </td>
@@ -120,6 +129,7 @@ export default function TargetsEditor({ fields, baseline, targets, onChange }: P
                     value={targets[f.key] ?? ''}
                     placeholder={f.goal != null ? String(f.goal) : undefined}
                     onChange={(e) => onChange({ baseline, targets: withValue(targets, f.key, e.target.value) })}
+                    onBlur={() => onCommit?.({ baseline, targets })}
                     className="w-32"
                   />
                 </td>
@@ -128,6 +138,7 @@ export default function TargetsEditor({ fields, baseline, targets, onChange }: P
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-muted-foreground">Weight, waist, body fat and any number field you log weekly.</p>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" onClick={fillTargets}>
           Fill targets from my profile goals

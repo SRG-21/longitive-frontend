@@ -66,6 +66,21 @@ export function useUpdateTracker(id: string) {
   })
 }
 
+export function useDeleteTracker() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) =>
+      (await api.delete<{ deleted: boolean; entries: number; fields: number }>(`/journey-trackers/${id}`)).data,
+    onSuccess: (_data, id) => {
+      queryClient.setQueryData<JourneyTracker[]>(['journey-trackers'], (list) => list?.filter((t) => t.id !== id))
+      queryClient.invalidateQueries({ queryKey: ['journey-trackers'], exact: true })
+      // Only drop cached queries nothing is showing: removing the ones the current page still
+      // observes would make it refetch the deleted tracker. Those are garbage-collected on unmount.
+      queryClient.removeQueries({ queryKey: ['journey-trackers', id], type: 'inactive' })
+    },
+  })
+}
+
 export function useActivateTracker(id: string) {
   const queryClient = useQueryClient()
   return useMutation({

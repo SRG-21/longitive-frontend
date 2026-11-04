@@ -1,12 +1,17 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { Trash2 } from 'lucide-react'
+import DeleteTrackerDialog from '../../components/journey-tracker/DeleteTrackerDialog'
 import { useTemplatePreview, useTrackers } from '../../hooks/useJourneyTracker'
 import { formatDate, journeyProgress, storedDay, todayIso } from '../../lib/date'
+import type { JourneyTracker } from '../../types/journey-tracker'
 
 export default function TrackerListPage() {
   const { data: trackers, isLoading } = useTrackers()
   const templatePreview = useTemplatePreview()
   const navigate = useNavigate()
+  const [deleting, setDeleting] = useState<JourneyTracker | null>(null)
 
   const startFromTemplate = async () => {
     try {
@@ -48,16 +53,27 @@ export default function TrackerListPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {trackers?.map((tracker) => (
-          <button
-            key={tracker.id}
-            onClick={() => navigate(`/journey-trackers/${tracker.id}/daily`)}
-            className="flex flex-col gap-1 rounded-lg border border-border bg-card p-4 text-left hover:shadow-sm"
-          >
-            <span className="font-medium text-foreground">{tracker.name}</span>
-            <TrackerCardMeta status={tracker.status} start={storedDay(tracker.startDate)} end={tracker.endDate ? storedDay(tracker.endDate) : null} />
-          </button>
+          <div key={tracker.id} className="relative">
+            <button
+              onClick={() => navigate(tracker.status === 'DRAFT' ? `/journey-trackers/${tracker.id}` : `/journey-trackers/${tracker.id}/daily`)}
+              className="flex w-full flex-col gap-1 rounded-lg border border-border bg-card p-4 pr-12 text-left hover:shadow-sm"
+            >
+              <span className="font-medium text-foreground">{tracker.name}</span>
+              <TrackerCardMeta status={tracker.status} start={storedDay(tracker.startDate)} end={tracker.endDate ? storedDay(tracker.endDate) : null} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleting(tracker)}
+              aria-label={`Delete ${tracker.name}`}
+              title="Delete tracker"
+              className="absolute right-2 top-2 rounded-md p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
         ))}
       </div>
+      {deleting && <DeleteTrackerDialog tracker={deleting} onClose={() => setDeleting(null)} />}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { Settings2 } from 'lucide-react'
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import AddFieldPanel from '../../components/journey-tracker/AddFieldPanel'
+import { isTargetField } from '../../components/journey-tracker/fieldKeys'
 import TrackerHeader from '../../components/journey-tracker/TrackerHeader'
 import { Badge, Button, Card, EmptyState, Loading } from '../../components/ui'
 import { useChartData, useTracker, useUpdateField } from '../../hooks/useJourneyTracker'
@@ -113,8 +114,10 @@ function ChartSetup({ tracker }: { tracker: JourneyTracker }) {
 function SeriesChart({ tracker, chart, series }: { tracker: JourneyTracker; chart: ChartData; series: ChartData['series'][number] }) {
   const field = tracker.fields?.find((f) => f.key === series.key)
   const weightKey = (tracker.settings as { syncWeightFieldKey?: string } | null | undefined)?.syncWeightFieldKey || 'weight'
-  const target = tracker.targets?.[series.key] ?? field?.target?.goal
-  const start = tracker.baseline?.[series.key]
+  // Start/target lines are for body measurements only (see isTargetField).
+  const targeted = !!field && isTargetField(field)
+  const target = targeted ? (tracker.targets?.[series.key] ?? field?.target?.goal) : undefined
+  const start = targeted ? tracker.baseline?.[series.key] : undefined
   // The rolling average smooths day-to-day noise; with one weight a week there is nothing to smooth.
   const showAverage = series.key === weightKey && series.cadence !== 'WEEKLY'
   const unit = series.unit ? ` ${series.unit}` : ''
