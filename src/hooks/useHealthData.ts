@@ -9,6 +9,7 @@ import type {
   LabSpreadsheetRow,
   LabTrendPoint,
   MoodLog,
+  OcrUpload,
   SleepLog,
   SleepScore,
 } from '../types/health'
@@ -60,7 +61,7 @@ export function useBodyCompositionOcr() {
   const invalidate = useInvalidateHealth()
   return useMutation({
     mutationFn: async (file: File) =>
-      (await api.post<BodyComposition>('/body-composition/ocr', await buildOcrFormData(file))).data,
+      (await api.post<OcrUpload<BodyComposition>>('/body-composition/ocr', await buildOcrFormData(file))).data,
     onSuccess: () => invalidate('body-composition'),
   })
 }
@@ -131,7 +132,7 @@ export function useUploadLabReport() {
   return useMutation({
     mutationFn: async (file: File) => {
       const endpoint = file.type === 'application/pdf' ? '/lab-reports/pdf' : '/lab-reports/ocr'
-      return (await api.post<LabReport>(endpoint, await buildOcrFormData(file))).data
+      return (await api.post<OcrUpload<LabReport>>(endpoint, await buildOcrFormData(file))).data
     },
     onSuccess: () => invalidate('lab-reports'),
   })
@@ -199,4 +200,9 @@ export function useCreateMoodLog() {
     mutationFn: async (dto: MoodLogInput) => (await api.post<MoodLog>('/mood/log', dto)).data,
     onSuccess: () => invalidate('mood'),
   })
+}
+
+/** A short-lived link to a scanned report's original file (the stored file is private). */
+export async function getLabReportFileUrl(id: string) {
+  return (await api.get<{ url: string }>(`/lab-reports/${id}/file`)).data.url
 }

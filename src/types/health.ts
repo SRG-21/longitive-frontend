@@ -1,7 +1,19 @@
 // Response shapes of the backend's health modules (mirrors prisma/schema.prisma in longitive-backend).
 // Dates arrive as ISO strings.
 
-export interface BodyComposition {
+/** Recorded for documents scanned with Mistral OCR. The file itself stays private. */
+export interface OcrInfo {
+  fileKey?: string | null
+  ocrModel?: string | null
+  ocrPages?: number | null
+  ocrMs?: number | null
+  ocrCostUsd?: number | null
+}
+
+/** OCR uploads say whether the same file had been uploaded before (then nothing new was created). */
+export type OcrUpload<T> = T & { alreadyUploaded?: boolean }
+
+export interface BodyComposition extends OcrInfo {
   id: string
   date: string
   height?: number | null
@@ -26,7 +38,7 @@ export interface BodyComposition {
   sourceImageUrl?: string | null
 }
 
-export type BodyCompositionMetric = Exclude<keyof BodyComposition, 'id' | 'date' | 'source' | 'sourceImageUrl'>
+export type BodyCompositionMetric = Exclude<keyof BodyComposition, 'id' | 'date' | 'source' | 'sourceImageUrl' | keyof OcrInfo>
 
 export interface BodyCompositionTrends {
   records: BodyComposition[]
@@ -48,7 +60,7 @@ export interface LabTestResult {
   notes?: string | null
 }
 
-export interface LabReport {
+export interface LabReport extends OcrInfo {
   id: string
   reportDate: string
   labName?: string | null

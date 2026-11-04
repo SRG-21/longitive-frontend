@@ -1,12 +1,37 @@
 import { Link, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeft, CheckCircle2, ExternalLink } from 'lucide-react'
-import { useLabReport, useVerifyLabReport } from '../../hooks/useHealthData'
+import { getLabReportFileUrl, useLabReport, useVerifyLabReport } from '../../hooks/useHealthData'
 import { getErrorMessage } from '../../lib/api'
 import { formatDate } from '../../lib/date'
 import { Badge, Button, Card, EmptyState, Loading, PageHeader } from '../../components/ui'
-import type { LabTestResult } from '../../types/health'
+import type { LabReport, LabTestResult } from '../../types/health'
 import { statusTone } from './labStatus'
+
+/**
+ * Opens the scanned original in a new tab. The file is private, so this asks the API for a
+ * short-lived link; the tab is opened first, during the click, so popup blockers allow it.
+ */
+async function openOriginal(id: string) {
+  const tab = window.open('', '_blank')
+  if (tab) tab.opener = null
+  try {
+    const url = await getLabReportFileUrl(id)
+    if (tab) tab.location.href = url
+    else window.location.assign(url)
+  } catch (err) {
+    tab?.close()
+    toast.error(getErrorMessage(err, 'Could not open the original file'))
+  }
+}
+
+/** "Scanned with Mistral OCR · 2 pages · 1.4 s" */
+function ocrSummary(report: LabReport) {
+  if (report.source !== 'OCR' || report.ocrPages == null) return null
+  const parts = [`Scanned with Mistral OCR`, `${report.ocrPages} ${report.ocrPages === 1 ? 'page' : 'pages'}`]
+  if (report.ocrMs != null) parts.push(`${(report.ocrMs / 1000).toFixed(1)} s`)
+  return parts.join(' · ')
+}
 
 function rangeLabel(r: LabTestResult) {
   if (r.referenceMin != null && r.referenceMax != null) return `${r.referenceMin} – ${r.referenceMax}`
@@ -48,10 +73,10 @@ export default function LabReportDetailPage() {
         description={`${formatDate(report.reportDate, { dateStyle: 'long' })} · ${report.results.length} results · ${report.source === 'OCR' ? 'scanned' : 'entered manually'}`}
         actions={
           <>
-            {report.fileUrl && (
-              <a href={report.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent">
+            {(report.fileKey || report.fileUrl) && (
+              <Button variant="outline" onClick={() => openOriginal(report.id)}>
                 <ExternalLink size={14} /> Original file
-              </a>
+              </Button>
             )}
             {report.verified ? (
               <Badge tone="green">
@@ -65,6 +90,8 @@ export default function LabReportDetailPage() {
           </>
         }
       />
+
+      {ocrSummary(report) && <p className="-mt-4 text-xs text-muted-foreground">{ocrSummary(report)}</p>}
 
       {!report.verified && report.source === 'OCR' && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">

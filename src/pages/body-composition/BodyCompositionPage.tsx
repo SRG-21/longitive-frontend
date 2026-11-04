@@ -78,7 +78,8 @@ export default function BodyCompositionPage() {
   const onUpload = async (file: File) => {
     try {
       const record = await ocr.mutateAsync(file)
-      toast.success(`Extracted measurement for ${formatDate(record.date)}`)
+      if (record.alreadyUploaded) toast(`You already uploaded this file — it's the ${formatDate(record.date)} measurement`, { icon: 'ℹ️' })
+      else toast.success(`Extracted measurement for ${formatDate(record.date)}`)
     } catch (err) {
       toast.error(getErrorMessage(err, 'Could not read that file'))
     }

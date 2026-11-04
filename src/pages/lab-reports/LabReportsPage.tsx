@@ -41,7 +41,8 @@ export default function LabReportsPage() {
   const onUpload = async (file: File) => {
     try {
       const report = await upload.mutateAsync(file)
-      toast.success(`Extracted ${report.results.length} results — please review them`)
+      if (report.alreadyUploaded) toast('You already uploaded this file — opening that report', { icon: 'ℹ️' })
+      else toast.success(`Extracted ${report.results.length} results — please review them`)
       navigate(`/lab-reports/${report.id}`)
     } catch (err) {
       toast.error(getErrorMessage(err, 'Could not extract results from that file'))
